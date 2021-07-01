@@ -46,8 +46,6 @@ private let IHProgressHUDLabelSpacing: CGFloat = 8.0
 
 public class IHProgressHUD : UIView {
     
-    static var isNotAppExtension = true
-    
     private var defaultStyle = IHProgressHUDStyle.light
     private var defaultMaskType = IHProgressHUDMaskType.none
     private var defaultAnimationType = IHProgressHUDAnimationType.flat
@@ -151,27 +149,10 @@ public class IHProgressHUD : UIView {
     private static let sharedView : IHProgressHUD = {
         var localInstance : IHProgressHUD?
         if Thread.current.isMainThread {
-            if IHProgressHUD.isNotAppExtension {
-                if let window = UIApplication.shared.delegate?.window {
-                    localInstance = IHProgressHUD.init(frame: window?.bounds ?? CGRect.zero)
-                } else {
-                    localInstance = IHProgressHUD()
-                }
-            }
-            else {
-                localInstance = IHProgressHUD.init(frame: UIScreen.main.bounds)
-            }
+            localInstance = IHProgressHUD.init(frame: UIScreen.main.bounds)
         } else {
             DispatchQueue.main.sync {
-                if IHProgressHUD.isNotAppExtension {
-                    if let window = UIApplication.shared.delegate?.window {
-                        localInstance = IHProgressHUD.init(frame: window?.bounds ?? CGRect.zero)
-                    } else {
-                        localInstance = IHProgressHUD()
-                    }
-                } else {
-                    localInstance = IHProgressHUD.init(frame: UIScreen.main.bounds)
-                }
+                localInstance = IHProgressHUD.init(frame: UIScreen.main.bounds)
             }
         }
         return localInstance!
@@ -355,84 +336,20 @@ public class IHProgressHUD : UIView {
         var keyboardHeight: CGFloat = 0.0
         var animationDuration: Double = 0.0
         
-        if IHProgressHUD.isNotAppExtension == false {
-            if viewForExtension != nil {
-                frame = viewForExtension!.frame
-            } else {
-                frame = UIScreen.main.bounds
-            }
+        if viewForExtension != nil {
+            frame = viewForExtension!.frame
+        } else {
+            frame = UIScreen.main.bounds
         }
         
         var statusBarFrame = CGRect.zero
         
         #if os(iOS) // notAppExtension + iOS
         var orientation = UIInterfaceOrientation.portrait
-        if IHProgressHUD.isNotAppExtension {
-            if #available(iOS 13.0, *) {
-                var rootVC:UIViewController? = nil
-                for scene in UIApplication.shared.connectedScenes {
-                    if scene.activationState == .foregroundActive {
-                        if let vc = ((scene as? UIWindowScene)?.delegate as? UIWindowSceneDelegate)?.window??.rootViewController {
-                            rootVC = vc
-                            break
-                        }
-                    }
-                }
-                frame = rootVC?.view.window?.bounds ?? UIScreen.main.bounds
-                if let or = rootVC?.view.window?.windowScene?.interfaceOrientation {
-                    orientation = or
-                }
-                if let statFrame = rootVC?.view.window?.windowScene?.statusBarManager?.statusBarFrame {
-                    statusBarFrame = statFrame
-                }
-            } else {
-                // Fallback on earlier versions
-                if let appDelegate = UIApplication.shared.delegate {
-                    if let window = appDelegate.window {
-                        if let windowFrame = window?.bounds {
-                            frame = windowFrame
-                        }
-                    }
-                }
-                orientation = UIApplication.shared.statusBarOrientation
-                statusBarFrame = UIApplication.shared.statusBarFrame
-            }
-            
-            
-            if frame.width > frame.height {
-                orientation = .landscapeLeft
-            } else {
-                orientation = .portrait
-            }
-            if let notificationData = notification {
-                let keyboardInfo = notificationData.userInfo
-                if let keyboardFrame: NSValue = keyboardInfo?[UIResponder.keyboardFrameEndUserInfoKey] as? NSValue {
-                    let keyboardFrame: CGRect = keyboardFrame.cgRectValue
-                    if (notification?.name.rawValue == UIResponder.keyboardWillShowNotification.rawValue || notification?.name.rawValue == UIResponder.keyboardDidShowNotification.rawValue) {
-                        keyboardHeight = keyboardFrame.width
-                        if orientation.isPortrait {
-                            keyboardHeight = keyboardFrame.height
-                        }
-                    }
-                }
-                if let aDuration: Double = keyboardInfo?[UIResponder.keyboardAnimationDurationUserInfoKey] as? Double {
-                    animationDuration = aDuration
-                }
-            } else {
-                keyboardHeight = getVisibleKeyboardHeight()
-            }
-            
-            updateMotionEffectForOrientation(orientation)
-        }
         #endif
         
         let orientationFrame = bounds
         #if os(tvOS)
-        if IHProgressHUD.isNotAppExtension {
-            if let keyWindow : UIWindow = UIApplication.shared.keyWindow {
-                frame = keyWindow.bounds
-            }
-        }
         updateMotionEffect(forXMotionEffectType: .tiltAlongHorizontalAxis, yMotionEffectType: .tiltAlongHorizontalAxis)
         #endif
         
@@ -467,18 +384,9 @@ public class IHProgressHUD : UIView {
                 self.containerView!.addSubview(getControlView())
                 //                self.frame = containerView!.frame
             } else {
-                if IHProgressHUD.isNotAppExtension {
-                    if self.containerView != nil {
-                        containerView?.addSubview(getControlView())
-                    } else {
-                        getFrontWindow()?.addSubview(getControlView())
-                    }
-                }
-                else {
-                    // If IHProgressHUD is used inside an app extension add it to the given view
-                    if viewForExtension != nil {
-                        viewForExtension!.addSubview(getControlView())
-                    }
+                // If IHProgressHUD is used inside an app extension add it to the given view
+                if viewForExtension != nil {
+                    viewForExtension!.addSubview(getControlView())
                 }
             }
         } else {
@@ -594,25 +502,6 @@ public class IHProgressHUD : UIView {
                     NotificationCenter.default.post(name: NotificationName.IHProgressHUDDidDisappear.getNotificationName(), object: strongSelf, userInfo: strongSelf.notificationUserInfo())
                     
                     // Tell the rootViewController to update the StatusBar appearance
-                    #if os(iOS)
-                    if IHProgressHUD.isNotAppExtension {
-                        if #available(iOS 13.0, *) {
-                            var rootVC:UIViewController? = nil
-                            for scene in UIApplication.shared.connectedScenes {
-                                if scene.activationState == .foregroundActive {
-                                    rootVC = ((scene as? UIWindowScene)?.delegate as? UIWindowSceneDelegate)?.window??.rootViewController
-                                    break
-                                }
-                            }
-                            rootVC?.setNeedsStatusBarAppearanceUpdate()
-                        } else {
-                            // Fallback on earlier versions
-                            let rootController: UIViewController? = UIApplication.shared.keyWindow?.rootViewController
-                            rootController?.setNeedsStatusBarAppearanceUpdate()
-                        }
-                        
-                    }
-                    #endif
                     if completion != nil {
                         completion!()
                     }
@@ -878,54 +767,10 @@ public class IHProgressHUD : UIView {
     }
     
     private func getFrontWindow() -> UIWindow? {
-        if IHProgressHUD.isNotAppExtension {
-            let frontToBackWindows: NSEnumerator = (UIApplication.shared.windows as NSArray).reverseObjectEnumerator()
-            for window in frontToBackWindows {
-                guard let win : UIWindow = window as? UIWindow else {return nil}
-                let windowOnMainScreen: Bool = win.screen == UIScreen.main
-                let windowIsVisible: Bool = !win.isHidden && (win.alpha > 0)
-                var windowLevelSupported = false
-                windowLevelSupported = win.windowLevel >= UIWindow.Level.normal && win.windowLevel <= maxSupportedWindowLevel
-                
-                let windowKeyWindow = win.isKeyWindow
-                
-                if windowOnMainScreen && windowIsVisible && windowLevelSupported && windowKeyWindow {
-                    return win
-                }
-            }
-        }
         return nil
     }
     
     private func getVisibleKeyboardHeight() -> CGFloat {
-        if IHProgressHUD.isNotAppExtension {
-            var keyboardWindow : UIWindow? = nil
-            for testWindow in UIApplication.shared.windows {
-                if !testWindow.self.isEqual(UIWindow.self) {
-                    keyboardWindow = testWindow
-                    break
-                }
-            }
-            for possibleKeyboard in keyboardWindow?.subviews ?? [] {
-                var viewName = String.init(describing: possibleKeyboard.self)
-                if viewName.hasPrefix("UI") {
-                    if viewName.hasSuffix("PeripheralHostView") || viewName.hasSuffix("Keyboard") {
-                        return possibleKeyboard.bounds.height
-                    } else if viewName.hasSuffix("InputSetContainerView") {
-                        for possibleKeyboardSubview: UIView? in possibleKeyboard.subviews {
-                            viewName = String.init(describing: possibleKeyboardSubview.self)
-                            if viewName.hasPrefix("UI") && viewName.hasSuffix("InputSetHostView") {
-                                let convertedRect = possibleKeyboard.convert(possibleKeyboardSubview?.frame ?? CGRect.zero, to: self)
-                                let intersectedRect: CGRect = convertedRect.intersection(bounds)
-                                if !intersectedRect.isNull {
-                                    return intersectedRect.height
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
         return 0
     }
     
@@ -1066,7 +911,6 @@ extension IHProgressHUD {
     } // default is the bundled error image provided by Freepik
     
     public class func set(viewForExtension view: UIView) {
-        IHProgressHUD.isNotAppExtension = false
         sharedView.viewForExtension = view
     } // default is nil, only used if #define SV_APP_EXTENSIONS is set
     
@@ -1299,14 +1143,7 @@ extension IHProgressHUD {
             controlView?.isUserInteractionEnabled = true
             controlView?.addTarget(self, action: #selector(controlViewDidReceiveTouchEvent(_:for:)), for: .touchDown)
         }
-        if IHProgressHUD.isNotAppExtension {
-            if let windowBounds : CGRect = UIApplication.shared.delegate?.window??.bounds {
-                controlView?.frame = windowBounds
-            }
-        }
-        else {
-            controlView?.frame = UIScreen.main.bounds
-        }
+        controlView?.frame = UIScreen.main.bounds
         return controlView!
     }
     
